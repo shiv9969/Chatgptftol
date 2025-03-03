@@ -1,6 +1,6 @@
 import os
 import pymongo
-from flask import Flask
+from flask import Flask, send_file
 from threading import Thread
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,6 +10,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 API_ID = int(os.getenv("API_ID", "0"))
 API_HASH = os.getenv("API_HASH")
+FQDN = os.getenv("FQDN", "https://your-default-domain.com")  # Set this in Render!
 
 # Initialize bot
 bot = Client("FileBot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
@@ -53,22 +54,21 @@ def stats(client, message):
 # File Handler
 @bot.on_message(filters.document | filters.video | filters.audio)
 def file_handler(client, message):
-    file_id = message.document.file_id if message.document else \
-              message.video.file_id if message.video else \
-              message.audio.file_id
+    file = message.document or message.video or message.audio
+    file_id = file.file_id
+    file_name = file.file_name
 
-    file_name = message.document.file_name if message.document else \
-                message.video.file_name if message.video else \
-                message.audio.file_name
+    # Download file to local storage
+    file_path = f"downloads/{file_id}"
+    os.makedirs("downloads", exist_ok=True)
+    client.download_media(file, file_path)
 
-    # Store file in MongoDB
-    files_collection.update_one({"file_id": file_id}, {"$set": {"file_name": file_name}}, upsert=True)
-
-    # Generate file link
-    file_link = f"https://t.me/{client.me.username}?start={file_id}"
+    # Store file in MongoDB with FQDN-based URL
+    file_link = f"{FQDN}/download/{file_id}"
+    files_collection.update_one({"file_id": file_id}, {"$set": {"file_name": file_name, "file_path": file_path}}, upsert=True)
 
     buttons = [
-        [InlineKeyboardButton("▶️ Stream", url=f"https://t.me/{client.me.username}/{file_id}")],
+        [InlineKeyboardButton("▶️ Stream", url=file_link)],
         [InlineKeyboardButton("📥 Download", url=file_link)],
         [InlineKeyboardButton("🔗 Get File Link", url=file_link)]
     ]
@@ -76,12 +76,19 @@ def file_handler(client, message):
     message.reply_text(f"**File:** {file_name}\n📥 [Download File]({file_link})",
                        reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
 
-# Flask Web Server (to keep Render service alive)
+# Flask Web Server (for file hosting)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running!"
+
+@app.route('/download/<file_id>')
+def serve_file(file_id):
+    file_data = files_collection.find_one({"file_id": file_id})
+    if file_data:
+        return send_file(file_data["file_path"], as_attachment=True)
+    return "File not found!", 404
 
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
