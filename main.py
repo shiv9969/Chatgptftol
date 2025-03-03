@@ -1,16 +1,15 @@
 import os
 import pymongo
+from flask import Flask
+from threading import Thread
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Load environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
-API_ID = os.getenv("API_ID")
+API_ID = int(os.getenv("API_ID", "0"))
 API_HASH = os.getenv("API_HASH")
-
-print(f"API_ID: {API_ID}, Type: {type(API_ID)}")  # Debugging output
-print(f"API_HASH: {API_HASH}")  # Debugging output
 
 # Initialize bot
 bot = Client("FileBot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
@@ -51,4 +50,17 @@ def file_handler(client, message):
     
     message.reply_text(f"**File:** {file_name}", reply_markup=InlineKeyboardMarkup(buttons))
 
-bot.run()
+# Flask Web Server (to keep Render service alive)
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+# Run bot and Flask server in parallel
+if __name__ == "__main__":
+    Thread(target=run_flask).start()
+    bot.run()
