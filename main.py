@@ -6,8 +6,11 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # Load environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
-API_ID = int(os.getenv("API_ID"))
+API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
+
+print(f"API_ID: {API_ID}, Type: {type(API_ID)}")  # Debugging output
+print(f"API_HASH: {API_HASH}")  # Debugging output
 
 # Initialize bot
 bot = Client("FileBot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
