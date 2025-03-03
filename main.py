@@ -60,4 +60,3 @@ async def handle_file(bot, message):
 
 if __name__ == "__main__":
     bot.run()
-``
